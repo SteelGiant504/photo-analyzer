@@ -11,9 +11,10 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # Gemini 1.5 Flashモデルの設定（JSON形式で確実に出力させる）
 model = genai.GenerativeModel(
-    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
     generation_config={"response_mime_type": "application/json"}
 )
+
 
 # AIへの指示（プロンプト）
 PROMPT = """

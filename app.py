@@ -61,14 +61,15 @@ if uploaded_files:
             
             # EXIFから撮影日を取得
             shot_date = get_exif_date(image)
-            
-            # Geminiに画像を投げて解析
+
+                        # Geminiに画像を投げて解析
             try:
                 response = model.generate_content([PROMPT, image])
                 ai_data = json.loads(response.text)
             except Exception as e:
-                st.error(f"{file.name} の解析に失敗しました。")
+                st.error(f"{file.name} の解析に失敗しました: {e}")
                 ai_data = {"品物目": "", "色": "", "メーカー": "", "その他の特徴": ""}
+
             
             # 結果をリストにまとめる
             results.append({

@@ -9,13 +9,18 @@ import os
 # StreamlitのシークレットからGemini APIキーを読み込む
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Gemini 1.5 Flashモデルの設定（JSON形式で確実に出力させる）
+# 利用可能な最新のFlashモデルを自動で探す
+model_name = 'gemini-1.5-flash'
+for m in genai.list_models():
+    if 'generateContent' in m.supported_generation_methods and 'flash' in m.name:
+        model_name = m.name.replace('models/', '')
+        break
+
+# 見つかったモデルを設定（JSON形式で確実に出力させる）
 model = genai.GenerativeModel(
-    'gemini-1.5-flash',
+    model_name,
     generation_config={"response_mime_type": "application/json"}
 )
-
-
 
 # AIへの指示（プロンプト）
 PROMPT = """

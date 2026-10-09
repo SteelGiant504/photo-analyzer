@@ -45,8 +45,23 @@ def get_exif_date(image):
 st.title("📸 写真解析＆Excel書き出しアプリ")
 st.write("スマホで撮影した写真をアップロードすると、AIが解析してExcelにまとめます。")
 
-# 写真のアップロード（複数枚対応）
-uploaded_files = st.file_uploader("写真を選択してください", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+# 写真の入力方法を選択（ラジオボタンで切り替え）
+upload_method = st.radio("写真の入力方法を選んでください", ("フォルダから選ぶ", "カメラで撮影する"))
+
+uploaded_files = [] # 空のリストを準備
+
+if upload_method == "フォルダから選ぶ":
+    # 既存のファイルアップロード機能
+    files = st.file_uploader("写真を選択してください", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    if files:
+        uploaded_files = files
+else:
+    # カメラ起動機能
+    camera_file = st.camera_input("カメラで撮影")
+    if camera_file:
+        # プログラムの後半でリストとして処理するため、[ ] で囲む
+        uploaded_files = [camera_file]
+
 
 if uploaded_files:
     if st.button("🚀 解析を開始する"):

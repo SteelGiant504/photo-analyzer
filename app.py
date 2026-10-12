@@ -4,13 +4,12 @@ from PIL import Image, ExifTags
 import pandas as pd
 import io
 import json
-import os
 from datetime import datetime
 
 # StreamlitのシークレットからGemini APIキーを読み込む
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# モデルは先ほど成功した最新版を指定
+# モデルは最新のGemini 3.8 Flashを指定
 model = genai.GenerativeModel(
     'gemini-3.8-flash',
     generation_config={"response_mime_type": "application/json"}
@@ -29,6 +28,7 @@ PROMPT = """
 """
 
 def get_exif_date(image):
+    """画像からEXIFの撮影日を取得し、なければ現在の日時を返す関数"""
     try:
         exif = image._getexif()
         if exif is not None:
@@ -41,67 +41,40 @@ def get_exif_date(image):
     now = datetime.now()
     return now.strftime("%Y/%m/%d %H:%M:%S")
 
-st.title("📸 写真解析＆Excel書き出しアプリ")
-st.write("スマホやPCから写真をアップロードすると、AIが解析してExcelにまとめます。")
+# 画面を広く使う設定
+st.set_page_config(page_title="写真解析アプリ", layout="wide")
+st.title("📸 写真解析＆Excel書き出しアプリ (PC版)")
+st.write("パソコンのフォルダから複数の写真をドラッグ＆ドロップで追加し、AIが解析してExcelにまとめます。")
 
 # --- 状態保存（セッションステート）の準備 ---
-if "all_photos" not in st.session_state:
-    st.session_state.all_photos = []
 if "final_df" not in st.session_state:
     st.session_state.final_df = None
 if "excel_data" not in st.session_state:
     st.session_state.excel_data = None
 
-upload_method = st.radio("写真の入力方法を選んでください", ("フォルダから選ぶ", "カメラで撮影する"))
-
-uploaded_files = [] 
-
-if upload_method == "フォルダから選ぶ":
-    st.write("💡 スマホの制限で複数選択すると初期画面に戻ってしまう場合、1〜2枚ずつ選んでストックしてください。")
-    if "folder_key" not in st.session_state:
-        st.session_state.folder_key = 0
-    files = st.file_uploader("写真を選択して追加", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"folder_{st.session_state.folder_key}")
-    
-    if files:
-        for f in files:
-            st.session_state.all_photos.append(f)
-        st.session_state.folder_key += 1
-        st.rerun()
-else:
-    st.write("💡 撮影ボタンを押すたびに写真がストックされます。")
-    if "camera_key" not in st.session_state:
-        st.session_state.camera_key = 0
-        
-    camera_file = st.camera_input("カメラで撮影", key=f"camera_{st.session_state.camera_key}")
-    
-    if camera_file:
-        st.session_state.all_photos.append(camera_file)
-        st.session_state.camera_key += 1
-        st.rerun()
-
-if len(st.session_state.all_photos) > 0:
-    st.success(f"📸 現在 {len(st.session_state.all_photos)} 枚の写真をストック中！")
-    if st.button("🗑️ ストックを全て消去する"):
-        st.session_state.all_photos = []
-        st.session_state.final_df = None
-        st.session_state.excel_data = None
-        st.rerun()
-    
-    uploaded_files = st.session_state.all_photos
+# PC向け：シンプルなドラッグ＆ドロップ対応の複数ファイルアップローダー
+uploaded_files = st.file_uploader(
+    "解析したい写真をドラッグ＆ドロップ、または選択してください（Shiftキー/Ctrlキーで複数選択可）", 
+    type=["jpg", "jpeg", "png"], 
+    accept_multiple_files=True
+)
 
 # --- 解析処理 ---
 if uploaded_files:
-    if st.button("🚀 解析を開始する"):
+    st.info(f"📁 {len(uploaded_files)} 枚の写真が選択されています。")
+    
+    if st.button("🚀 解析を開始する", type="primary"):
         results = []
-        progress_text = st.empty()
+        progress_bar = st.progress(0)
+        status_text = st.empty()
         
         for i, file in enumerate(uploaded_files):
-            progress_text.text(f"解析中... ({i+1}/{len(uploaded_files)}枚目): {file.name}")
+            status_text.text(f"解析中... ({i+1}/{len(uploaded_files)}枚目): {file.name}")
             
             image = Image.open(file)
             shot_date = get_exif_date(image)
             
-            # 💡重要：メモリ不足による強制終了を防ぐため、写真を縮小する
+            # メモリ不足と通信時間削減のため、写真を縮小する
             image.thumbnail((1024, 1024))
             
             try:
@@ -120,24 +93,43 @@ if uploaded_files:
                 "その他の特徴": ai_data.get("その他の特徴", "")
             })
             
-        progress_text.text("✨ 解析が完了しました！")
+            # プログレスバーを更新
+            progress_bar.progress((i + 1) / len(uploaded_files))
+            
+        status_text.success("✨ 全ての解析が完了しました！")
         
         df = pd.DataFrame(results)
         
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='解析結果')
+            
+            # PC向け：Excelの列幅を文字数に合わせて見やすく自動調整
+            worksheet = writer.sheets['解析結果']
+            for col in worksheet.columns:
+                max_length = 0
+                column = col[0].column_letter
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(cell.value)
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column].width = min(adjusted_width, 50)
         
-        # 💡重要：解析結果とExcelデータを「保存（ストック）」して消えないようにする
+        # 解析結果を保存
         st.session_state.final_df = df
         st.session_state.excel_data = output.getvalue()
 
-# --- 結果とダウンロードボタンの表示（ボタンの外に出す） ---
+# --- 結果とダウンロードボタンの表示 ---
 if st.session_state.final_df is not None:
-    st.dataframe(st.session_state.final_df)
+    # 画面幅いっぱいに表を表示
+    st.dataframe(st.session_state.final_df, use_container_width=True)
     st.download_button(
         label="📥 Excelファイルをダウンロード",
         data=st.session_state.excel_data,
-        file_name="photo_analysis_result.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        file_name="photo_analysis_result_pc.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary"
     )

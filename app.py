@@ -78,7 +78,7 @@ else:
     if "camera_key" not in st.session_state:
         st.session_state.camera_key = 0
         
-    camera_file = st.camera_input("カメラで撮影", key=f"camera_{st.session_state.camera_key}", facing_mode="environment")
+    camera_file = st.camera_input("カメラで撮影", key=f"camera_{st.session_state.camera_key}")
 
     if camera_file:
         # 撮影されたら、ストック（箱）に追加する

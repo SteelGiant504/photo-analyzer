@@ -5,7 +5,7 @@ import pandas as pd
 import io
 import json
 import os
-from datetime import datetime  #
+from datetime import datetime
 
 # StreamlitのシークレットからGemini APIキーを読み込む
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -46,12 +46,8 @@ def get_exif_date(image):
     now = datetime.now()
     return now.strftime("%Y/%m/%d %H:%M:%S")
 
-# --- これより上のコード（importやget_exif_dateなど）はそのまま ---
-
 st.title("📸 写真解析＆Excel書き出しアプリ")
 st.write("スマホで撮影した写真をアップロードすると、AIが解析してExcelにまとめます。")
-
-# --- ▼ここから下を丸ごと入れ替え▼ ---
 
 # 写真ストック用のリスト（フォルダ・カメラ共通で貯められる箱）
 if "all_photos" not in st.session_state:
@@ -102,12 +98,13 @@ if len(st.session_state.all_photos) > 0:
     # ストックされた写真を最終的な解析リストに入れる
     uploaded_files = st.session_state.all_photos
 
-
+# 共通の解析処理（ファイルがある場合のみ表示）
+if uploaded_files:
+    if st.button("🚀 解析を開始する"):
         results = []
         progress_text = st.empty()
         
         for i, file in enumerate(uploaded_files):
-            # ... (ここから下の for ループの中身やExcel出力の処理は元のままでOKです) ...
             progress_text.text(f"解析中... ({i+1}/{len(uploaded_files)}枚目): {file.name}")
             
             image = Image.open(file)
@@ -145,4 +142,3 @@ if len(st.session_state.all_photos) > 0:
             file_name="photo_analysis_result.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-

@@ -30,7 +30,7 @@ PROMPT = """
 """
 
 def get_exif_date(image):
-    """画像からEXIFの撮影日を取得する関数"""
+    """画像からEXIFの撮影日を取得し、なければ現在の日時を返す関数"""
     try:
         exif = image._getexif()
         if exif is not None:
@@ -41,7 +41,11 @@ def get_exif_date(image):
                     return value.replace(':', '/', 2)
     except Exception:
         pass
-    return ""
+    
+    # EXIFが取れなかった場合（ブラウザのカメラ撮影時など）は、現在の日時を返す
+    now = datetime.now()
+    return now.strftime("%Y/%m/%d %H:%M:%S")
+
 
 st.title("📸 写真解析＆Excel書き出しアプリ")
 st.write("スマホで撮影した写真をアップロードすると、AIが解析してExcelにまとめます。")

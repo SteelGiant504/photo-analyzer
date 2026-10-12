@@ -46,52 +46,80 @@ def get_exif_date(image):
     now = datetime.now()
     return now.strftime("%Y/%m/%d %H:%M:%S")
 
+# --- これより上のコード（importやget_exif_dateなど）はそのまま ---
 
 st.title("📸 写真解析＆Excel書き出しアプリ")
 st.write("スマホで撮影した写真をアップロードすると、AIが解析してExcelにまとめます。")
 
+# --- ▼ここから下を丸ごと入れ替え▼ ---
+
+# 撮影した写真を貯めておくための「箱」を準備する
+if "camera_photos" not in st.session_state:
+    st.session_state.camera_photos = []
+
 # 写真の入力方法を選択（ラジオボタンで切り替え）
 upload_method = st.radio("写真の入力方法を選んでください", ("フォルダから選ぶ", "カメラで撮影する"))
 
-uploaded_files = [] # 空のリストを準備
+uploaded_files = [] # 最終的に解析に回す写真のリスト
 
 if upload_method == "フォルダから選ぶ":
-    # 既存のファイルアップロード機能
+    # フォルダからの場合は、既存の複数選択機能を使う
     files = st.file_uploader("写真を選択してください", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     if files:
         uploaded_files = files
+        # フォルダモードの時は、カメラのストックをリセットしておく
+        st.session_state.camera_photos = [] 
+
 else:
-    # カメラ起動機能
-    camera_file = st.camera_input("カメラで撮影")
+    # カメラ起動機能（連続撮影用）
+    st.write("💡 **ヒント:** 撮影ボタンを押すたびに写真がストックされます。撮り終えたら下部の「解析を開始する」を押してください。")
+    
+    # 毎回新しいキーを生成することで、カメラウィジェットをリセットして連続撮影を可能にする
+    if "camera_key" not in st.session_state:
+        st.session_state.camera_key = 0
+        
+    camera_file = st.camera_input("カメラで撮影", key=f"camera_{st.session_state.camera_key}")
+    
     if camera_file:
-        # プログラムの後半でリストとして処理するため、[ ] で囲む
-        uploaded_files = [camera_file]
+        # 撮影されたら、ストック（箱）に追加する
+        st.session_state.camera_photos.append(camera_file)
+        # 次の撮影ができるようにキーを更新
+        st.session_state.camera_key += 1
+        st.rerun() # 画面を再読み込みしてカメラを空にする
+    
+    # ストックされている写真の枚数を表示
+    if len(st.session_state.camera_photos) > 0:
+        st.success(f"📸 現在 {len(st.session_state.camera_photos)} 枚の写真をストック中！")
+        # やり直しボタン
+        if st.button("🗑️ ストックを全て消去する"):
+            st.session_state.camera_photos = []
+            st.rerun()
+        
+        # ストックされた写真を最終的な解析リストに入れる
+        uploaded_files = st.session_state.camera_photos
 
 
+# 共通の解析処理（ファイルがある場合のみ表示）
 if uploaded_files:
+    # ボタンを押して解析スタート
     if st.button("🚀 解析を開始する"):
         results = []
         progress_text = st.empty()
         
         for i, file in enumerate(uploaded_files):
+            # ... (ここから下の for ループの中身やExcel出力の処理は元のままでOKです) ...
             progress_text.text(f"解析中... ({i+1}/{len(uploaded_files)}枚目): {file.name}")
             
-            # 画像を読み込む
             image = Image.open(file)
-            
-            # EXIFから撮影日を取得
             shot_date = get_exif_date(image)
-
-                        # Geminiに画像を投げて解析
+            
             try:
                 response = model.generate_content([PROMPT, image])
                 ai_data = json.loads(response.text)
             except Exception as e:
                 st.error(f"{file.name} の解析に失敗しました: {e}")
                 ai_data = {"品物目": "", "色": "", "メーカー": "", "その他の特徴": ""}
-
             
-            # 結果をリストにまとめる
             results.append({
                 "写真撮影日": shot_date,
                 "写真ファイル名": file.name,
@@ -103,20 +131,18 @@ if uploaded_files:
             
         progress_text.text("✨ 解析が完了しました！")
         
-        # データを表（データフレーム）に変換して画面に表示
         df = pd.DataFrame(results)
         st.dataframe(df)
         
-        # Excelファイルの作成準備
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='解析結果')
         output.seek(0)
         
-        # ダウンロードボタンの表示
         st.download_button(
             label="📥 Excelファイルをダウンロード",
             data=output,
             file_name="photo_analysis_result.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+

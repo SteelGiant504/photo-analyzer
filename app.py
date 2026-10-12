@@ -5,6 +5,7 @@ import pandas as pd
 import io
 import json
 import os
+from datetime import datetime  #
 
 # StreamlitのシークレットからGemini APIキーを読み込む
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])

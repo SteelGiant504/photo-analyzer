@@ -53,9 +53,9 @@ st.write("スマホで撮影した写真をアップロードすると、AIが�
 
 # --- ▼ここから下を丸ごと入れ替え▼ ---
 
-# 撮影した写真を貯めておくための「箱」を準備する
-if "camera_photos" not in st.session_state:
-    st.session_state.camera_photos = []
+# 写真ストック用のリスト（フォルダ・カメラ共通で貯められる箱）
+if "all_photos" not in st.session_state:
+    st.session_state.all_photos = []
 
 # 写真の入力方法を選択（ラジオボタンで切り替え）
 upload_method = st.radio("写真の入力方法を選んでください", ("フォルダから選ぶ", "カメラで撮影する"))
@@ -63,46 +63,46 @@ upload_method = st.radio("写真の入力方法を選んでください", ("フ�
 uploaded_files = [] # 最終的に解析に回す写真のリスト
 
 if upload_method == "フォルダから選ぶ":
-    # フォルダからの場合は、既存の複数選択機能を使う
-    files = st.file_uploader("写真を選択してください", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    st.write("💡 スマホの制限で複数選択すると初期画面に戻ってしまう場合、1〜2枚ずつ選んでストックしてください。")
+    
+    # 毎回リセットして連続で追加できるようにする
+    if "folder_key" not in st.session_state:
+        st.session_state.folder_key = 0
+        
+    files = st.file_uploader("写真を選択して追加", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"folder_{st.session_state.folder_key}")
+    
     if files:
-        uploaded_files = files
-        # フォルダモードの時は、カメラのストックをリセットしておく
-        st.session_state.camera_photos = [] 
+        # 選ばれた写真をストックに追加
+        for f in files:
+            st.session_state.all_photos.append(f)
+        # 次の追加ができるようにキーを更新して画面をリセット
+        st.session_state.folder_key += 1
+        st.rerun()
 
 else:
-    # カメラ起動機能（連続撮影用）
-    st.write("💡 **ヒント:** 撮影ボタンを押すたびに写真がストックされます。撮り終えたら下部の「解析を開始する」を押してください。")
-    
-    # 毎回新しいキーを生成することで、カメラウィジェットをリセットして連続撮影を可能にする
+    st.write("💡 撮影ボタンを押すたびに写真がストックされます。")
     if "camera_key" not in st.session_state:
         st.session_state.camera_key = 0
         
     camera_file = st.camera_input("カメラで撮影", key=f"camera_{st.session_state.camera_key}")
-
-    if camera_file:
-        # 撮影されたら、ストック（箱）に追加する
-        st.session_state.camera_photos.append(camera_file)
-        # 次の撮影ができるようにキーを更新
-        st.session_state.camera_key += 1
-        st.rerun() # 画面を再読み込みしてカメラを空にする
     
-    # ストックされている写真の枚数を表示
-    if len(st.session_state.camera_photos) > 0:
-        st.success(f"📸 現在 {len(st.session_state.camera_photos)} 枚の写真をストック中！")
-        # やり直しボタン
-        if st.button("🗑️ ストックを全て消去する"):
-            st.session_state.camera_photos = []
-            st.rerun()
+    if camera_file:
+        st.session_state.all_photos.append(camera_file)
+        st.session_state.camera_key += 1
+        st.rerun()
+
+# 共通: ストックされている写真の枚数を表示
+if len(st.session_state.all_photos) > 0:
+    st.success(f"📸 現在 {len(st.session_state.all_photos)} 枚の写真をストック中！")
+    
+    if st.button("🗑️ ストックを全て消去する"):
+        st.session_state.all_photos = []
+        st.rerun()
         
-        # ストックされた写真を最終的な解析リストに入れる
-        uploaded_files = st.session_state.camera_photos
+    # ストックされた写真を最終的な解析リストに入れる
+    uploaded_files = st.session_state.all_photos
 
 
-# 共通の解析処理（ファイルがある場合のみ表示）
-if uploaded_files:
-    # ボタンを押して解析スタート
-    if st.button("🚀 解析を開始する"):
         results = []
         progress_text = st.empty()
         
